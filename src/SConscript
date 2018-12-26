@@ -1,0 +1,5 @@
+Import('inc_dir')
+Import('build_dir')
+Import('src_dir')
+env = Environment(CPPPATH = ["../" + inc_dir], LIBS = [])
+execute = env.Program("test_db", ["jsondb.cpp", "test.cpp", "helpers.cpp", "log.cpp", "sha256.cpp"])
