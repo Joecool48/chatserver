@@ -147,11 +147,11 @@ json Server::get_sent_json_data(json & j, Client * client) {
     }
     // If is a newline, then it is a correctly formatted header. Retreive the json contents
     if (buff[0] == '\n') {
-        server_log(SERVER_INFO, "Received message of length %s from socket %d", len.c_str(), client->sockFd);
+        log_dbg(SERVER_INFO, "Received message of length" + len + "from socket " + to_string(client->socketFd));
     }
     long len = strtol(len.c_str());
     if (len == 0) {
-        server_log(SERVER_ERROR, "Error, malformatted header, error %d.", errno);
+        log_dbg(SERVER_ERROR, "Error, malformatted header, error " + to_string(errno));
         // What to do when malformed header. Dump contents?
     }
     // Get the json contents of the header.
@@ -175,7 +175,7 @@ json Server::get_sent_json_data(json & j, Client * client) {
         return j;
     }
     catch (exception e) {
-        server_log("An exception occurred when parsing the json for socket %d", client->socketFd);
+        log_dbg(Severity::LOG_ERROR, "An exception occurred when parsing the json for socket" + to_string(client->socketFd));
         return json();
     }
 }

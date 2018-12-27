@@ -1,8 +1,8 @@
 #include"pass.h"
 
 char pass::genRandHexChar() {
-    unsigned r = rand() % 16;
-    if (r >= 0 || r <= 9) {
+    char r = rand() % 16;
+    if (r >= 0 && r <= 9) {
         return '0' + r;
     }
     else {
@@ -11,9 +11,9 @@ char pass::genRandHexChar() {
 }
 
 std::string pass::salt(unsigned amount) {
-    stringstream s;
+    std::stringstream s;
     for (unsigned i = 0; i < amount; i++) {
-        s << getRandHexChar();
+        s << pass::genRandHexChar();
     }
     return s.str();
 }

@@ -9,7 +9,7 @@
 #include<time.h>
 #include<unordered_map>
 using namespace std;
-
+using namespace Log;
 typedef ClientId uint64_t;
 
 class Client {

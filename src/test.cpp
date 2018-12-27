@@ -1,19 +1,26 @@
 #include"log.h"
 #include"jsondb.h"
-#include"sha256.h"
+#include"pass.h"
 int main() {
-    /*jsondb mydb("/home/joey/chatapp/testDB");
+    jsondb mydb("/home/joey/chatapp/testDB");
     mydb.createFile("joey");
     mydb.select("joey");
     json & j = mydb.getSelectData();
-    for (int i = 0; i < 100; i++) {
-        mydb.createFile("joey" + to_string(i));
-        mydb.select("joey" + to_string(i));
-        json & j = mydb.getSelectData();
-        j["username"] = "joey" + to_string(i);
-        j["messages"] = {"Hi", "good", "Memes"};
-        mydb.saveSelectData();
-        }*/
-    string hash = sha256("MyBall");
-    cout << hash << endl;
+    j["username"] = "joey";
+    j["salt"] = pass::salt(32);
+    j["hash"] = pass::hashPass("123456", j["salt"]);
+    mydb.saveSelectData();
+    std::string str;
+    while (true) {
+        std::cin >> str;
+        // Get the pass
+        // Then check to see if it is the same
+        if (pass::passCompare(pass::hashPass(str, j["salt"]), j["hash"])) {
+            std::cout << "Right password!" << std::endl;
+            break;
+        }
+        else {
+            std::cout << "Wrong password! Try again!" << std::endl;
+        }
+    }
 }
