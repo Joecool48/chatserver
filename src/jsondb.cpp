@@ -1,5 +1,9 @@
 #include"jsondb.h"
 
+jsondb::jsondb() {
+    dbDirectory = DEFAULT_DB_DIR;
+}
+
 jsondb::jsondb(const string & dbDir) {
     dbDirectory = dbDir;
 }

@@ -12,7 +12,7 @@ public:
                          LOG_DEBUG = 3,
                          LOG_INFO = 4
     };
-    static void init_log(Severity severity, const string & logFileName);
+    static void init_log(Severity severity);
     static void log_dbg(Severity level, const string & msg);
     static void log_destroy();
 private:

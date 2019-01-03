@@ -8,23 +8,15 @@
 #include<stdbool.h>
 #include<time.h>
 #include<unordered_map>
+#include<errno.h>
+#include"jsondb.h"
+#include"log.h"
+#include"client.h"
 using namespace std;
-using namespace Log;
-typedef ClientId uint64_t;
+using namespace nlohmann;
+using namespace helpers;
 
-class Client {
-public:
-    Client(ClientId id, int clientSock);
-    const string& getUsername();
-    void setUsername(const string & newUsername);
-private:
-    int socketFd;
-    ClientId id;
-    time_t lastConnectTime;
-    time_t lastDisconnectTime;
-    string username;
-};
-
+#define DEFAULT_LOG_DIR "/home/joey/chatapp/log"
 #define MAX_EVENTS 30
 #define MAX_CLIENTS 3000
 #define DEFAULT_LOG_FILE "log.txt"
@@ -33,18 +25,17 @@ private:
 #define MAX_LISTEN_QUEUE 30
 #define EVENT_TIMEOUT 1000 // In us
 #define BUFFER_LEN 300
-#define CLIENT_DATA_TIMEOUT_USEC 100000
 class Server {
  public:
-    static ClientId current_id = 0;
     Server();
-    void start(string ip, int listenPort);
-    void halt();
+    void run(char * ip, int listenPort);
     ~Server();
-    void get_sent_json_data(json & j, Client * client);
+    json get_sent_json_data(Client * client);
  private:
     void get_client_first_connect_data(Client * client);
     void check_events();
+    bool isValidPort(int port);
+    void removeClient(int key);
     unordered_map<int, Client*> clientMap;
     int serverSock;
     struct sockaddr addr;
@@ -52,5 +43,6 @@ class Server {
     int epollNum;
     int logfileFd;
     bool loggingEnabled;
-    struct epoll_events events[MAX_EVENTS];
-}
+    jsondb db;
+    struct epoll_event events[MAX_EVENTS];
+};

@@ -1,5 +1,5 @@
 #include"log.h"
-void Log::init_log(Severity severity, const string & logFileName) {
+void Log::init_log(Severity severity) {
     // Check if the file name is valid
     stringstream s;
     time_t t = time(NULL);

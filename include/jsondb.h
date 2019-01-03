@@ -7,6 +7,7 @@ using namespace std;
 using nlohmann::json;
 class jsondb {
  public:
+    jsondb();
     jsondb(const string & dbDir);
     bool select(const string & selectFileName); // Select the next db file
     bool findFile(const string & fileName);
