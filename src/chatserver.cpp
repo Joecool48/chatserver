@@ -6,7 +6,32 @@ Server::Server () {
         perror("epoll_create");
         exit(1);
     }
+    initDB();
 }
+
+void Server::initDB() {
+    dbInstance = mongocxx::instance{};
+    dbClient = mongocxx::client(mongocxx::uri());
+    db = dbClient[CHATAPP_DB_NAME];
+    usersCollection = db[CHATAPP_USERS_COLLECTION_NAME];
+}
+
+Server::createUserDBEntry(const string & user, const string & hashPassword, const string & salt ) {
+    // Create new user document
+    auto builder = bsoncxx::builder::stream::document{}; // Username should always match doc mane
+    bsoncxx::document::value doc = builder
+        << USERNAME << user
+        << HASHPASSWORD << hashPassword
+        << SALT << salt
+        << LAST_LOGIN_TIME << ""
+        << LAST_LOGOUT_TIME << ""
+        << CURRENTLY_LOGGED_IN << false
+        << GROUPS << bsoncxx::builder::stream::open_array << bsoncxx::builder::stream::close_array
+        << bsoncxx::builder::stream::finalize;
+    usersCollection.insert_one(doc); // Add the user to the usersCollection
+
+}
+
 void Server::run(char *ip, int listenPort) {
     struct epoll_event ev; // Epoll event for epoll_ctl, and events array for epoll_wait
     int nfds = 0; // Number of file descriptors from epoll
@@ -122,8 +147,31 @@ void Server::check_events() {
             json client_message_data = get_sent_json_data(client);
             // Skip cause an error occurred
             if (client_message_data.empty()) continue;
-            if (client->getUsername().empty()) {
-                // Get the username
+            // Check all the possible request codes
+            if (client_message_data.find(REQUEST) == client_message_data.end()) continue;
+
+            switch (client_message_data[REQUEST]) {
+            case REQUEST_SALT_VALUE_FROM_SERVER:
+                process_request_salt(client, client_message_data);
+                break;
+            case USER_LOGIN_REQUEST:
+                process_user_login_request(client, client_message_data);
+                break;
+            case CREATE_ACCOUNT_REQUEST:
+                process_user_create_account(client, client_message_data);
+                break;
+            case SEND_MESSAGE:
+                process_send_message(client, client_message_data);
+                break;
+            case REQUEST_MESSAGE_LOG:
+                process_request_message_log(client, client_message_data);
+                break;
+            case USER_EXIT:
+                process_user_exit(client, client_message_data);
+                break;
+            default:
+                // Tell the client the request isn't recognized
+                send_error(client, ERR_INVALID_REQUEST);
             }
         }
     }
@@ -190,7 +238,70 @@ json Server::get_sent_json_data(Client * client) {
 bool Server::isValidPort(int port) {
     return port >= 0 && port <= 65535;
 }
-// Function to cleanup all the clients resources, and show that it disconnected
+// Function to cleanup all the clients resources, and show that it disconnected TODO possible extra cleanup needed
 void Server::removeClient(int clientSockFd) {
     clientMap.erase(clientSockFd);
 }
+
+void Server::process_request_salt(Client * client, json & clientMessage) {
+    // It is trusted that username is a string
+    if (clientMessage.find(USERNAME) == clientMessage.end()) {
+        send_status(client, ERR_NEED_MORE_LOGIN_INFO);
+    }
+    // User must exist, and therefore have a salt
+    string salt = "";
+    bsoncxx::stdx::optional<bsoncxx::document::value> res = usersCollection.find_one(document{} << USERNAME << clientMessage[USERNAME]);
+    // Salt exists
+    if (res) {
+        salt = res[SALT];
+    }
+    // Otherwise, must create a salt because first time user entered db fov
+    else {
+        salt = pass::salt(SALT_AMOUNT);
+    }
+    json j;
+    j[REQUEST] = SERVER_SEND_SALT;
+    j[SALT] = salt;
+    send_json_data(client, j);
+}
+
+void process_user_login_request(Client * client, json & clientMessage) {
+    if (clientMessage.find(USERNAME) == clientMessage.end() || clientMessage.find(HASHPASSWORD) == clientMessage.end() || clientMessage.find(SALT) == clientMessage.end()) {
+        send_status(client, ERR_NEED_MORE_LOGIN_INFO);
+    }
+    // Query a document that has the right salt, hash, and username. If one exists, then they login successfully
+    bsoncxx::stdx::optional<bsoncxx::document::value> res = usersCollection.find_one(document{} << USERNAME << clientMessage[USERNAME] << SALT << clientMessage[SALT] << HASHPASSWORD << clientMessage[HASHPASSWORD]);
+    // Logged in successfully
+    if (res) {
+        time_t t = time(NULL);
+        usersCollection.update_one(document{} << USERNAME << clientMessage[USERNAME] << finalize, document{} << "$set" << open_document << CURRENTLY_LOGGED_IN << true << LAST_LOGIN_TIME << put_time(localtime(&t), "%c") << close_document << finalize);
+        send_status(client, USER_LOGIN_INFO_FOUND);
+    }
+    else {
+        send_status(client, ERR_USER_LOGIN_INFO_NOT_FOUND);
+    }
+}
+
+
+void send_json_data(Client * client, const json & j) {
+    string jstring = j.dump();
+    stringstream res;
+    // construct the object
+    res << jstring.length() << '\n' << jstring;
+    char buff[BUFFER_LEN];
+    int totalBytesSent = 0;
+    string sendString = res.str();
+    // Send total string in chunks until it all goes through
+    while (totalBytesSent < sendString.length()) {
+        int numBytes = send(client->socketFd, sendString.c_str() + totalBytesSent, sendString.length() - totalBytesSent >= BUFFER_LEN ? BUFFER_LEN : sendString.length() - totalBytesSent);
+        if (numBytes == -1) {
+            perror("send");
+            exit(EXIT_FAILURE);
+        }
+        if (numBytes > 0) {
+            totalBytesSent += numBytes;
+        }
+    }
+}
+
+

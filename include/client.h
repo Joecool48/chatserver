@@ -26,7 +26,5 @@ class Client {
     static ClientId current_id;
     int socketFd;
     ClientId id;
-    time_t lastConnectTime;
-    time_t lastDisconnectTime;
     string username;
 };

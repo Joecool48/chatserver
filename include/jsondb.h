@@ -10,7 +10,7 @@ class jsondb {
     jsondb();
     jsondb(const string & dbDir);
     bool select(const string & selectFileName); // Select the next db file
-    bool findFile(const string & fileName);
+    bool findUser(const string & fileName);
     json& getSelectData();
     bool createFile(const string & fileName);
     bool saveSelectData(); // Returns true if save was successful

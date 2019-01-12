@@ -35,7 +35,7 @@ bool jsondb::select(const string & selectFileName) {
     return true;
 }
 
-bool jsondb::findFile(const string & fileName) {
+bool jsondb::findUser(const string & fileName) {
     const string str(dbDirectory + "/" + fileName);
     return helpers::isValidFilePath(str);
 }

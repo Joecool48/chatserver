@@ -1,7 +1,7 @@
 import os
 import glob
 import atexit
-inc_dir = "include"
+inc_dir = ["../include", "/usr/local/include/mongocxx/v_noabi", "/usr/local/include/bsoncxx/v_noabi"]
 src_dir = "src"
 build_dir = "bin"
 Export('inc_dir')
