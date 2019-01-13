@@ -14,13 +14,35 @@ void Server::initDB() {
     dbClient = mongocxx::client(mongocxx::uri());
     db = dbClient[CHATAPP_DB_NAME];
     usersCollection = db[CHATAPP_USERS_COLLECTION_NAME];
+    groupCollection = db[CHATAPP_GROUP_COLLECTION_NAME];
+    metadataCollection = db[CHATAPP_METADATA_COLLECTION_NAME];
+    metadataDocument = metadataCollection.find_one(document{} << DOCNAME << CHATAPP_METADATA_DOCUMENT_NAME << finalize);
+    // If meta data document doesnt exist, then create it
+    if(!metadataDocument) {
+        metadataCollection.insert_one(document{} << DOCNAME << CHATAPP_METADAT_DOCUMENT_NAME << GROUP_ID << 0 << finalize);
+    }
 }
 
-Server::createUserDBEntry(const string & user, const string & hashPassword, const string & salt ) {
+long Server::getNextGroupId() {
+    mongocxx::document::view doc = metadataCollection.find_one(document{} << DOCNAME << CHATAPP_METADATA_DOCUMENT_NAME << finalize);
+    long id = doc[CURRENT_GROUP_ID];
+    metadataCollection.update_one(document{} << DOCNAME << CHATAPP_METADATA_DOCUMENT_NAME << finalize, document{} << "$set" << open_document << CURRENT_GROUP_ID << (id + 1) << close_document << finalize);
+    return id;
+}
+
+long Server::getNextUserId() {
+    mongocxx::document::view doc = metadataCollection.find_one(document{} << DOCNAME << CHATAPP_METADATA_DOCUMENT_NAME << finalize);
+    long id = doc[CURRENT_USER_ID];
+    metadataCollection.update_one(document{} << DOCNAME << CHATAPP_METADATA_DOCUMENT_NAME << finalize, document{} << "$set" << open_document << CURRENT_USER_ID << (id + 1) << close_document << finalize);
+    return id;
+}
+
+void Server::createUserDBEntry(const string & user, const string & hashPassword, const string & salt ) {
     // Create new user document
     auto builder = bsoncxx::builder::stream::document{}; // Username should always match doc mane
     bsoncxx::document::value doc = builder
         << USERNAME << user
+        << USER_ID << getNextUserId() 
         << HASHPASSWORD << hashPassword
         << SALT << salt
         << LAST_LOGIN_TIME << ""
@@ -30,6 +52,16 @@ Server::createUserDBEntry(const string & user, const string & hashPassword, cons
         << bsoncxx::builder::stream::finalize;
     usersCollection.insert_one(doc); // Add the user to the usersCollection
 
+}
+
+void Server::createGroupDBEntry(const string & groupname) {
+    auto builder = bsoncxx::builder::string::document{};
+    bsoncxx::document::value doc = builder
+        << GROUPNAME << groupname
+        << GROUP_ID << getNextGroupId()
+        << USER_LIST << open_array << close_array
+        << finalize;
+    groupCollection.insert_one(doc);
 }
 
 void Server::run(char *ip, int listenPort) {
@@ -160,6 +192,8 @@ void Server::check_events() {
             case CREATE_ACCOUNT_REQUEST:
                 process_user_create_account(client, client_message_data);
                 break;
+            case CREATE_GROUP_REQUEST:
+                process_create_group_request(client, client_message_data);
             case SEND_MESSAGE:
                 process_send_message(client, client_message_data);
                 break;
@@ -282,6 +316,31 @@ void process_user_login_request(Client * client, json & clientMessage) {
     }
 }
 
+void Server::process_user_create_account(Client * client, json & clientMessage) {
+    if (userExistsInDB(clientMessage[USERNAME])) {
+        send_status(client, ERR_USER_NAME_TAKEN);
+        return;
+    }
+    if (clientMessage.find(USERNAME) == clientMessage.end() ||
+        clientMessage.find(SALT) == clientMessage.end() ||
+        clientMessage.find(HASHPASSWORD) == clientMessage.end()) {
+        send_status(client, ERR_NEED_MORE_LOGIN_INFO);
+        return;
+    }
+    // All the data must exist, so we can just create the user entry
+    createUserDBEntry(clientMessage[USERNAME], clientMessage[HASHPASSWORD],
+                      clientMessage[SALT]);
+}
+
+void Server::process_create_group_request(Client * client, json & clientMessage) {
+    /* TODO */
+}
+
+bool Server::userExistsInDB(const string & username) {
+    bsoncxx::stdx::optional<bsoncxx::document::value> res = userCollection.find_one(document{} << USERNAME << username << finalize);
+    if (res) return true;
+    return false;
+}
 
 void send_json_data(Client * client, const json & j) {
     string jstring = j.dump();

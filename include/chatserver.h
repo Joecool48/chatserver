@@ -25,6 +25,9 @@ using namespace helpers;
 
 #define CHATAPP_DB_NAME "chatappDB"
 #define CHATAPP_USERS_COLLECTION_NAME "users"
+#define CHATAPP_METADATA_COLLECTION_NAME "chatappMetadata"
+#define CHATAPP_METADATA_DOCUMENT_NAME "appdata"
+#define CHATAPP_GROUP_COLLECTION_NAME "groups"
 
 
 #define DEFAULT_LOG_DIR "/home/joey/chatapp/log"
@@ -58,13 +61,21 @@ class Server {
     void process_request_message_log(Client * client, json & clientMessage);
     void process_user_exit(Client * client, json & clientMessage);
     void process_user_create_account(Client * client, json & clientMessage);
+    void process_create_group_request(Client * client, json & clientMessage);
     // Database vars and functions
     void initDB();
+    long getNextGroupId();
+    long getNextUserId();
+    bool userExistsInDB(const string & username);
     mongocxx::instance dbInstance;
     mongocxx::client dbClient;
     mongocxx::database db;
     mongocxx::collection usersCollection;
-    void createUserDBEntry(string username);
+    mongocxx::collection metadataCollection;
+    mongocxx::document metadataDocument;
+
+    void createUserDBEntry(const string & username, const string & hashPassword, const string & salt);
+    void createGroupDBEntry(const string & groupname);
     unordered_map<int, Client*> clientMap;
     int serverSock;
     struct sockaddr addr;
