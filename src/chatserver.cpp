@@ -40,9 +40,10 @@ long Server::getNextUserId() {
 void Server::createUserDBEntry(const string & user, const string & hashPassword, const string & salt ) {
     // Create new user document
     auto builder = bsoncxx::builder::stream::document{}; // Username should always match doc mane
+    long id = getNextUserId();
     bsoncxx::document::value doc = builder
         << USERNAME << user
-        << USER_ID << getNextUserId() 
+        << USER_ID << id
         << HASHPASSWORD << hashPassword
         << SALT << salt
         << LAST_LOGIN_TIME << ""
@@ -51,17 +52,49 @@ void Server::createUserDBEntry(const string & user, const string & hashPassword,
         << GROUPS << bsoncxx::builder::stream::open_array << bsoncxx::builder::stream::close_array
         << bsoncxx::builder::stream::finalize;
     usersCollection.insert_one(doc); // Add the user to the usersCollection
+    return id;
 
 }
 
-void Server::createGroupDBEntry(const string & groupname) {
+int Server::createGroupDBEntry(const string & groupname) {
     auto builder = bsoncxx::builder::string::document{};
+    long id = getNextGroupId();
     bsoncxx::document::value doc = builder
         << GROUPNAME << groupname
-        << GROUP_ID << getNextGroupId()
+        << GROUP_ID << id
         << USER_LIST << open_array << close_array
+        << MESSAGE_LOG << open_array << close_array
         << finalize;
     groupCollection.insert_one(doc);
+    return id;
+}
+
+int Server::addUserToGroup(long userId, long groupId) {
+    // First query to see if the group exists
+    bsoncxx::stdx::optional<bsoncxx::document::value> groupRes = groupCollection.find_one(document{} << GROUP_ID << groupId << finalize);
+    if (!groupRes) return -1; // Group was not found, so couldn't delete user
+    bsoncxx::stdx::optional<bsoncxx::document::value> userRes = userCollection.find_one(document{} << USER_ID << userId << finalize);
+    if (!userREs) return -1;
+    // Subscribe the user to the group
+    groupCollection.update_one(document{} << GROUP_ID << groupId << finalize, document{} << "$push" << open_document << USER_LIST << userId << close_document << finalize);
+
+    userCollection.update_one(document{} << USER_ID << userId << finalize, document{} << "$push" << open_document << GROUPS << groupId << close_document << finalize);
+    return 0; // success
+    
+}
+
+int Server::removeUserFromGroup(long userId, long groupId) {
+    bsoncxx::stdx::optional<bsoncxx::document::value> groupRes = groupCollection.find_one(document{} << GROUP_ID << groupId << finalize);
+    if (!groupRes) return -1; // Group was not found, so couldn't delete user
+    bsoncxx::stdx::optional<bsoncxx::document::value> userRes = userCollection.find_one(document{} << USER_ID << userId << finalize);
+    if (!userREs) return -1;
+    // Delete the userId from the user list array
+    groupCollection.update_one(document{} << GROUP_ID << groupId << finalize, document <<  "$pull" << open_document << USER_LIST << userId << close_document << finalize);
+
+    userCollection.update_one(document{} << USER_ID << userId << finalize, document{} << "$pull" << open_document << GROUPS << groupId << close_document << finalize);
+    return 0;
+
+
 }
 
 void Server::run(char *ip, int listenPort) {
@@ -205,7 +238,7 @@ void Server::check_events() {
                 break;
             default:
                 // Tell the client the request isn't recognized
-                send_error(client, ERR_INVALID_REQUEST);
+                send_status(client, ERR_INVALID_REQUEST);
             }
         }
     }
@@ -307,8 +340,7 @@ void process_user_login_request(Client * client, json & clientMessage) {
     bsoncxx::stdx::optional<bsoncxx::document::value> res = usersCollection.find_one(document{} << USERNAME << clientMessage[USERNAME] << SALT << clientMessage[SALT] << HASHPASSWORD << clientMessage[HASHPASSWORD]);
     // Logged in successfully
     if (res) {
-        time_t t = time(NULL);
-        usersCollection.update_one(document{} << USERNAME << clientMessage[USERNAME] << finalize, document{} << "$set" << open_document << CURRENTLY_LOGGED_IN << true << LAST_LOGIN_TIME << put_time(localtime(&t), "%c") << close_document << finalize);
+        usersCollection.update_one(document{} << USERNAME << clientMessage[USERNAME] << finalize, document{} << "$set" << open_document << CURRENTLY_LOGGED_IN << true << LAST_LOGIN_TIME << helpers::get_current_time() << close_document << finalize);
         send_status(client, USER_LOGIN_INFO_FOUND);
     }
     else {
@@ -332,8 +364,18 @@ void Server::process_user_create_account(Client * client, json & clientMessage) 
                       clientMessage[SALT]);
 }
 
-void Server::process_create_group_request(Client * client, json & clientMessage) {
-    /* TODO */
+int Server::process_create_group_request(Client * client, json & clientMessage) {
+    // Not enough info
+    if (!verify::verify_create_group_message(clientMessage)) {
+        Log::log_dbg(Log::Severity::LOG_ERROR, "Invalid json request for creating a group");
+        return -1;
+    }
+    long group_id = createGroupDBEntry(clientMessage[GROUPNAME]);
+    vector<long> user_ids = clientMessage[USER_LIST];
+    for (auto it = user_ids.begin(); it != user_ids.end(); it++) {
+        addUserToGroup(*it, group_id); // Add every user to the group that is listed
+    }
+    return 0;
 }
 
 bool Server::userExistsInDB(const string & username) {
@@ -363,4 +405,24 @@ void send_json_data(Client * client, const json & j) {
     }
 }
 
-
+void Server::send_status(Client * client, int status) {
+    json j;
+    j[USERNAME] = client->username;
+    j[TIMESTAMP] = helpers::get_current_time();
+    j[STATUS] = status;
+    string message;
+    switch (status) {
+    case ERR_USER_MUST_LOGIN_FIRST:
+        message = "User cannot do anything without logging in";
+    case ERR_INVALID_REQUEST:
+        message = "Request number not recognized";
+    case ERR_NEED_MORE_LOGIN_INFO:
+        message = "Not enough login info provided";
+    case ERR_USER_NAME_TAKEN:
+        message = "Another user already has this username. Try a different one";
+    default:
+        message = "No additional info";
+    }
+    j[OTHER_MESSAGE] = message;
+    send_json_data(client, j);
+}

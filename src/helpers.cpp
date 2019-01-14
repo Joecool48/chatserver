@@ -11,3 +11,10 @@ bool helpers::isValidFilePath(const string & filepath) {
     }
     return true;
 }
+
+string helpers::get_current_time() {
+    time_t t = time(NULL);
+    stringstream s;
+    s << put_time(localtime(&t), "%c");
+    return s.str();
+}

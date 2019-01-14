@@ -1,6 +1,8 @@
 /*
   This file contains all the codes for the different pieces of data that are exchanged between client and server. Everything goes to the server, and there are no direct client to client interactions. Personal preferences are stored client side.
 */
+#ifndef REQUEST_CODES_H
+#define REQUEST_CODES_H
 #include<string>
 
 
@@ -18,6 +20,7 @@ const std::string CURRENTLY_LOGGED_IN = "logged_in";
 const std::string USER_LIST = "user_list"; // List of users in the group by id
 const std::string GROUP_ID = "group_id";
 const std::string GROUPNAME = "group_name";
+const std::string MESSAGE_LOG = "message_log";
 
 // Metadata collection strings
 const std::string CURRENT_GROUP_ID = "current_group_id"; // Rolling count of IDs used so far. Simply increments every time a new user or group is added
@@ -26,9 +29,24 @@ const std::string DOCNAME = "name";
 
 // Message strings
 const std::string REQUEST = "request";
+const std::string OTHER_MESSAGE = "other_message"; // Space for other info
+const std::string TIMESTAMP = "time"; // Timestamp for when message was sent
+const std::string STATUS = "status"; // Server sending info to client
+// Message json format
+/**
+   Create group message
+   REQUEST: (int),
+   TIMESTAMP: (string),
+   GROUPNAME: (string),
+   USER_LIST: (long array),
+   OTHER_MESSAGE: (string)
 
-#ifndef REQUEST_CODES_H
-#define REQUEST_CODES_H
+   Status message
+   STATUS: (int),
+   TIMESTAMP: (string),
+   USERNAME: (string),
+   OTHER_MESSAGE: (string)
+ **/
 
 enum CLIENT_CODES {
                    REQUEST_SALT_VALUE_FROM_SERVER, /* Client asking for server salt attached to username */
@@ -51,7 +69,6 @@ enum SERVER_CODES {
                    ERR_NEED_MORE_LOGIN_INFO,
                    ERR_USER_NAME_TAKEN
 };
-
 
 
 

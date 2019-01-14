@@ -9,7 +9,7 @@
 #include<time.h>
 #include<unordered_map>
 #include<errno.h>
-
+#include"json.hpp"
 #include <bsoncxx/builder/stream/document.hpp>
 #include <bsoncxx/json.hpp>
 #include <mongocxx/client.hpp>
@@ -61,7 +61,7 @@ class Server {
     void process_request_message_log(Client * client, json & clientMessage);
     void process_user_exit(Client * client, json & clientMessage);
     void process_user_create_account(Client * client, json & clientMessage);
-    void process_create_group_request(Client * client, json & clientMessage);
+    int process_create_group_request(Client * client, json & clientMessage);
     // Database vars and functions
     void initDB();
     long getNextGroupId();
@@ -73,9 +73,11 @@ class Server {
     mongocxx::collection usersCollection;
     mongocxx::collection metadataCollection;
     mongocxx::document metadataDocument;
-
-    void createUserDBEntry(const string & username, const string & hashPassword, const string & salt);
-    void createGroupDBEntry(const string & groupname);
+    void send_status(Client * client, int status); // For server communicating updates to client
+    int createUserDBEntry(const string & username, const string & hashPassword, const string & salt); // returns the user id
+    int createGroupDBEntry(const string & groupname); // Returns the group id
+    int addUserToGroup(long userId, long groupId);
+    int removeUserFromGroup(long userId, long groupId);
     unordered_map<int, Client*> clientMap;
     int serverSock;
     struct sockaddr addr;
