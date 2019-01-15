@@ -14,3 +14,20 @@ bool verify::verify_create_group_message(const json & j) {
         j.find(USER_LIST) != j.end() &&
         j.find(OTHER_MESSAGE) != j.end();
 }
+
+bool verify::verify_create_account(const json & j) {
+    return j.find(REQUEST) != j.end() &&
+        j.find(USERNAME) != j.end() &&
+        j.find(SALT) != j.end() &&
+        j.find(HASPPASSWORD) != j.end() &&
+        j.find(TIMESTAMP) != j.end();
+}
+
+bool verify::verify_login_request(const json & j) {
+    return j.find(REQUEST) != j.end() &&
+        j.find(USERNAME) != j.end() &&
+        j.find(SALT) != j.end() &&
+        j.find(HASPPASSWORD) != j.end() &&
+        j.find(TIMESTAMP) != j.end();
+
+}

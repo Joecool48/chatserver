@@ -56,10 +56,11 @@ void Server::createUserDBEntry(const string & user, const string & hashPassword,
 
 }
 
-int Server::createGroupDBEntry(const string & groupname) {
+int Server::createGroupDBEntry(const string & groupname, const string & owner_name) {
     auto builder = bsoncxx::builder::string::document{};
     long id = getNextGroupId();
     bsoncxx::document::value doc = builder
+        << GROUP_OWNER << owner_name
         << GROUPNAME << groupname
         << GROUP_ID << id
         << USER_LIST << open_array << close_array
@@ -227,6 +228,13 @@ void Server::check_events() {
                 break;
             case CREATE_GROUP_REQUEST:
                 process_create_group_request(client, client_message_data);
+                break;
+            case ADD_USER_TO_GROUP_REQUEST:
+                process_add_user_to_group_request(client, client_message_data);
+                break;
+            case REMOVE_USER_FROM_GROUP_REQUEST:
+                process_remove_user_from_group_request(client, client_message_data);
+                break;
             case SEND_MESSAGE:
                 process_send_message(client, client_message_data);
                 break;
@@ -333,9 +341,10 @@ void Server::process_request_salt(Client * client, json & clientMessage) {
 }
 
 void process_user_login_request(Client * client, json & clientMessage) {
-    if (clientMessage.find(USERNAME) == clientMessage.end() || clientMessage.find(HASHPASSWORD) == clientMessage.end() || clientMessage.find(SALT) == clientMessage.end()) {
+    if (!verify::verify_login_request(clientMessage)) {
         send_status(client, ERR_NEED_MORE_LOGIN_INFO);
     }
+    client->username = clientMessage[USERNAME];
     // Query a document that has the right salt, hash, and username. If one exists, then they login successfully
     bsoncxx::stdx::optional<bsoncxx::document::value> res = usersCollection.find_one(document{} << USERNAME << clientMessage[USERNAME] << SALT << clientMessage[SALT] << HASHPASSWORD << clientMessage[HASHPASSWORD]);
     // Logged in successfully
@@ -353,9 +362,7 @@ void Server::process_user_create_account(Client * client, json & clientMessage) 
         send_status(client, ERR_USER_NAME_TAKEN);
         return;
     }
-    if (clientMessage.find(USERNAME) == clientMessage.end() ||
-        clientMessage.find(SALT) == clientMessage.end() ||
-        clientMessage.find(HASHPASSWORD) == clientMessage.end()) {
+    if (!verify::verify_create_account(clientMessage)){
         send_status(client, ERR_NEED_MORE_LOGIN_INFO);
         return;
     }
@@ -368,14 +375,19 @@ int Server::process_create_group_request(Client * client, json & clientMessage) 
     // Not enough info
     if (!verify::verify_create_group_message(clientMessage)) {
         Log::log_dbg(Log::Severity::LOG_ERROR, "Invalid json request for creating a group");
+        send_status(client, ERR_INVALID_JSON_MESSAGE);
         return -1;
     }
-    long group_id = createGroupDBEntry(clientMessage[GROUPNAME]);
+    long group_id = createGroupDBEntry(clientMessage[GROUPNAME], clientMessage[USERNAME]);
     vector<long> user_ids = clientMessage[USER_LIST];
     for (auto it = user_ids.begin(); it != user_ids.end(); it++) {
         addUserToGroup(*it, group_id); // Add every user to the group that is listed
     }
     return 0;
+}
+
+int Server::process_add_user_to_group_request(Client * client, json & clientMessage) {
+    
 }
 
 bool Server::userExistsInDB(const string & username) {
@@ -420,6 +432,8 @@ void Server::send_status(Client * client, int status) {
         message = "Not enough login info provided";
     case ERR_USER_NAME_TAKEN:
         message = "Another user already has this username. Try a different one";
+    case ERR_INVALID_JSON_MESSAGE:
+        message = "Cannot interpret JSON contents. Please send another message";
     default:
         message = "No additional info";
     }

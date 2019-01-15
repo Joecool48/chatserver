@@ -21,6 +21,7 @@ const std::string USER_LIST = "user_list"; // List of users in the group by id
 const std::string GROUP_ID = "group_id";
 const std::string GROUPNAME = "group_name";
 const std::string MESSAGE_LOG = "message_log";
+const std::string GROUP_OWNER = "owner"; // Keep track of owner for permission reasons
 
 // Metadata collection strings
 const std::string CURRENT_GROUP_ID = "current_group_id"; // Rolling count of IDs used so far. Simply increments every time a new user or group is added
@@ -41,6 +42,20 @@ const std::string STATUS = "status"; // Server sending info to client
    USER_LIST: (long array),
    OTHER_MESSAGE: (string)
 
+   Create account message
+   REQUEST: (int),
+   TIMESTAMP: (string),
+   USERNAME: (string),
+   HASHPASSWORD: (string),
+   SALT: (string)
+
+   Login request message
+   REQUEST: (int),
+   TIMESTAMP: (string),
+   USERNAME: (string),
+   HASHPASSWORD: (string),
+   SALT: (string)
+
    Status message
    STATUS: (int),
    TIMESTAMP: (string),
@@ -55,7 +70,9 @@ enum CLIENT_CODES {
                    REQUEST_MESSAGE_LOG, /* User requests its previous certain amount of messages from the server */
                    USER_EXIT, /* Nice way to tell server that user exited. If connection drops server also knows client exited */
                    CREATE_ACCOUNT_REQUEST, /* User asks server to create a new user with hash password, salt value, and username and add it to the database */
-                   CREATE_GROUP_REQUEST
+                   CREATE_GROUP_REQUEST,
+                   ADD_USER_TO_GROUP_REQUEST,
+                   REMOVE_USER_FROM_GROUP_REQUEST
 };
 
 enum SERVER_CODES {
@@ -67,7 +84,8 @@ enum SERVER_CODES {
                    ERR_USER_MUST_LOGIN_FIRST,
                    ERR_INVALID_REQUEST,
                    ERR_NEED_MORE_LOGIN_INFO,
-                   ERR_USER_NAME_TAKEN
+                   ERR_USER_NAME_TAKEN,
+                   ERR_INVALID_JSON_MESSAGE // Sent when server cant interpret header
 };
 
 

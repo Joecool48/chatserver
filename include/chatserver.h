@@ -62,6 +62,8 @@ class Server {
     void process_user_exit(Client * client, json & clientMessage);
     void process_user_create_account(Client * client, json & clientMessage);
     int process_create_group_request(Client * client, json & clientMessage);
+    int process_add_user_to_group_request(Client * client, json & clientMessage);
+    int process_remove_user_from_group_request(Client * client, json & clientMessage);
     // Database vars and functions
     void initDB();
     long getNextGroupId();
@@ -75,7 +77,7 @@ class Server {
     mongocxx::document metadataDocument;
     void send_status(Client * client, int status); // For server communicating updates to client
     int createUserDBEntry(const string & username, const string & hashPassword, const string & salt); // returns the user id
-    int createGroupDBEntry(const string & groupname); // Returns the group id
+    int createGroupDBEntry(const string & groupname, const string & ownername); // Returns the group id
     int addUserToGroup(long userId, long groupId);
     int removeUserFromGroup(long userId, long groupId);
     unordered_map<int, Client*> clientMap;
