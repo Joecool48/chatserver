@@ -57,8 +57,8 @@ class Server {
     // Request processing functions
     void process_request_salt(Client * client, json & clientMessage);
     void process_user_login_request(Client * client, json & clientMessage);
-    void process_send_message(Client * client, json & clientMessage);
-    void process_request_message_log(Client * client, json & clientMessage);
+    int process_send_message(Client * client, json & clientMessage);
+    int process_request_message_log(Client * client, json & clientMessage);
     void process_user_exit(Client * client, json & clientMessage);
     void process_user_create_account(Client * client, json & clientMessage);
     int process_create_group_request(Client * client, json & clientMessage);
@@ -68,7 +68,7 @@ class Server {
     void initDB();
     long getNextGroupId();
     long getNextUserId();
-    bool userExistsInDB(const string & username);
+    int userExistsInDB(const string & username);
     mongocxx::instance dbInstance;
     mongocxx::client dbClient;
     mongocxx::database db;

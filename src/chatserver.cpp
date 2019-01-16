@@ -81,7 +81,7 @@ int Server::addUserToGroup(long userId, long groupId) {
 
     userCollection.update_one(document{} << USER_ID << userId << finalize, document{} << "$push" << open_document << GROUPS << groupId << close_document << finalize);
     return 0; // success
-    
+
 }
 
 int Server::removeUserFromGroup(long userId, long groupId) {
@@ -235,13 +235,13 @@ void Server::check_events() {
             case REMOVE_USER_FROM_GROUP_REQUEST:
                 process_remove_user_from_group_request(client, client_message_data);
                 break;
-            case SEND_MESSAGE:
+            case SEND_MESSAGE: // Simply forward message from sender to everyone else. Clients respond with an acknowledgement
                 process_send_message(client, client_message_data);
                 break;
-            case REQUEST_MESSAGE_LOG:
+            case REQUEST_MESSAGE_LOG: // Simply hands the client a certain number of log messages back
                 process_request_message_log(client, client_message_data);
                 break;
-            case USER_EXIT:
+            case USER_EXIT: // Cleanup when exiting
                 process_user_exit(client, client_message_data);
                 break;
             default:
@@ -344,15 +344,16 @@ void process_user_login_request(Client * client, json & clientMessage) {
     if (!verify::verify_login_request(clientMessage)) {
         send_status(client, ERR_NEED_MORE_LOGIN_INFO);
     }
-    client->username = clientMessage[USERNAME];
     // Query a document that has the right salt, hash, and username. If one exists, then they login successfully
     bsoncxx::stdx::optional<bsoncxx::document::value> res = usersCollection.find_one(document{} << USERNAME << clientMessage[USERNAME] << SALT << clientMessage[SALT] << HASHPASSWORD << clientMessage[HASHPASSWORD]);
     // Logged in successfully
     if (res) {
         usersCollection.update_one(document{} << USERNAME << clientMessage[USERNAME] << finalize, document{} << "$set" << open_document << CURRENTLY_LOGGED_IN << true << LAST_LOGIN_TIME << helpers::get_current_time() << close_document << finalize);
+        client->username = clientMessage[USERNAME];
         send_status(client, USER_LOGIN_INFO_FOUND);
     }
     else {
+        client->username = "";
         send_status(client, ERR_USER_LOGIN_INFO_NOT_FOUND);
     }
 }
@@ -387,13 +388,35 @@ int Server::process_create_group_request(Client * client, json & clientMessage) 
 }
 
 int Server::process_add_user_to_group_request(Client * client, json & clientMessage) {
-    
+    if (!verify::verify_add_user_to_group_request(clientMessage)) return -1;
+    long userIdToAdd;
+    if ((userIdToAdd = userExistsInDB(clientMessage[USERNAME])) == -1) return -1;
+    // Find the group that this owner is trying to add a user
+    bsoncxx::stdx::optional<bsoncxx::document::value> res = groupCollection.find_one(document{} << GROUP_OWNER << client->getUsername() << finalize);
+    if (!res) {
+        send_status(client, ERR_NOT_GROUP_OWNER);
+        return -1;
+    }
+    return addUserToGroup(userIdToAdd, res[GROUP_ID]);
 }
 
-bool Server::userExistsInDB(const string & username) {
+int Server::process_remove_user_from_group_request(Client * client, json & clientMessage) {
+    if (!verify::verify_add_user_to_group_request(clientMessage)) return -1;
+    long userIdToRemove;
+    if ((userIdToRemove = userExistsInDB(clientMessage[USERNAME])) == -1) return -1;
+    bsoncxx::stdx::optional<bsoncxx::document::value> res = groupCollection.find_one(document{} << GROUP_OWNER << client->getUsername() << finalize);
+    if(!res) {
+        send_status(client, ERR_NOT_GROUP_OWNER);
+        return -1;
+    }
+    return removeUserFromGroup(userIdToRemove, res[GROUP_ID]);
+
+}
+// Returns the ID of the user if found, otherwise -1
+int Server::userExistsInDB(const string & username) {
     bsoncxx::stdx::optional<bsoncxx::document::value> res = userCollection.find_one(document{} << USERNAME << username << finalize);
-    if (res) return true;
-    return false;
+    if (res) return res[USER_ID];
+    return -1;
 }
 
 void send_json_data(Client * client, const json & j) {
@@ -416,6 +439,12 @@ void send_json_data(Client * client, const json & j) {
         }
     }
 }
+// Parallelise so that we don't have to wait for sending? TODO
+int Server::process_send_message(Client * client, json & client_message_data) {
+    /* TODO */
+    // Send message to everyone except original client
+    
+}
 
 void Server::send_status(Client * client, int status) {
     json j;
@@ -434,6 +463,8 @@ void Server::send_status(Client * client, int status) {
         message = "Another user already has this username. Try a different one";
     case ERR_INVALID_JSON_MESSAGE:
         message = "Cannot interpret JSON contents. Please send another message";
+    case ERR_NOT_GROUP_OWNER:
+        message = "Cannot complete action because user who made request does not have permission";
     default:
         message = "No additional info";
     }

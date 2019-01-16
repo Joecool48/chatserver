@@ -5,6 +5,9 @@
 #define REQUEST_CODES_H
 #include<string>
 
+/*
+  Usernames are unique. User cannot be in 2 groups with the exact same name
+*/
 
 // User collection strings
 const std::string USERNAME = "username";
@@ -33,6 +36,8 @@ const std::string REQUEST = "request";
 const std::string OTHER_MESSAGE = "other_message"; // Space for other info
 const std::string TIMESTAMP = "time"; // Timestamp for when message was sent
 const std::string STATUS = "status"; // Server sending info to client
+const std::string MESSAGE_START_DATE = "start_date";
+const std::string MESSAGE_END_DATE = "end_date";
 // Message json format
 /**
    Create group message
@@ -42,24 +47,50 @@ const std::string STATUS = "status"; // Server sending info to client
    USER_LIST: (long array),
    OTHER_MESSAGE: (string)
 
+   Can only add or remove from a group if you are its owner
+
+   Add to group message
+   REQUEST: (int),
+   TIMESTAMP: (string),
+   GROUPNAME: (string),
+   USERNAME: (string), // Username to add to the group
+   OTHER_MESSAGE: (string)
+
+   Remove from group message
+   REQUEST: (int),
+   TIMESTAMP: (string),
+   GROUPNAME: (string),
+   USERNAME: (string), // Username to remove from the group
+   OTHER_MESSAGE: (string)
+
    Create account message
    REQUEST: (int),
    TIMESTAMP: (string),
    USERNAME: (string),
    HASHPASSWORD: (string),
-   SALT: (string)
+   SALT: (string),
+   OTHER_MESSAGE: (string)
 
    Login request message
    REQUEST: (int),
    TIMESTAMP: (string),
    USERNAME: (string),
    HASHPASSWORD: (string),
-   SALT: (string)
+   SALT: (string),
+   OTHER_MESSAGE: (string)
 
    Status message
    STATUS: (int),
    TIMESTAMP: (string),
    USERNAME: (string),
+   OTHER_MESSAGE: (string)
+
+   Retrieve messages log
+   REQUEST: (int),
+   TIMESTAMP: (string),
+   GROUPNAME: (string),
+   MESSAGE_START_DATE: (string),
+   MESSAGE_END_DATE: (string),
    OTHER_MESSAGE: (string)
  **/
 
@@ -85,7 +116,8 @@ enum SERVER_CODES {
                    ERR_INVALID_REQUEST,
                    ERR_NEED_MORE_LOGIN_INFO,
                    ERR_USER_NAME_TAKEN,
-                   ERR_INVALID_JSON_MESSAGE // Sent when server cant interpret header
+                   ERR_INVALID_JSON_MESSAGE, // Sent when server cant interpret header
+                   ERR_NOT_GROUP_OWNER
 };
 
 
